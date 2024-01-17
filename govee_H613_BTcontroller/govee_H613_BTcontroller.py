@@ -29,9 +29,23 @@ class GoveeController:
         if not self.client:
             self.client = BleakClient(self.mac_address, winrt={
                                       "use_cached_services": True})
-            try:
-                await self.client.connect()
-            except BleakDeviceNotFoundError:
+
+            attempts = 0
+            while attempts < 3:
+                try:
+                    await self.client.connect()
+                    break
+                except BleakDeviceNotFoundError:
+                    raise BleakDeviceNotFoundError(
+                        f'Could not connect to {self.mac_address}')
+                except BleakError as e:
+                    _LOGGER.error(
+                        f'Could not connect to {self.mac_address}. error: {e}')
+
+                _LOGGER.error(
+                    f'retying connect to {self.mac_address}. {attempts+1}/3')
+                attempts += 1
+            if attempts == 3:
                 raise BleakDeviceNotFoundError(
                     f'Could not connect to {self.mac_address}')
 
@@ -126,7 +140,7 @@ class GoveeController:
 
         # Split the command string into bytes
         command_bytes = make_string(rgb)
-
+        print("!!! command_bytes: ", command_bytes)
         # Send the command
         await self._send_command(to_bytes(command_bytes))
 
@@ -153,7 +167,6 @@ class GoveeController:
 
             self.rgb = (r, g, b)
             self.color_name = convert_color(rgb_tuple=self.rgb)
-
             _LOGGER.debug(f'RGB: {self.rgb} ({self.color_name})')
 
         elif data.hex()[0:4] == 'aa04':
